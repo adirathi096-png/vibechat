@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Music, Plus, Heart, ExternalLink, MessageCircle, X, Headphones, Radio, Sparkles } from 'lucide-react';
+import { Music, Plus, Heart, ExternalLink, MessageCircle, X, Headphones, Radio, Sparkles, Play, Pause, Search, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { musicService } from '@/services/musicService';
 import { chatService } from '@/services/chatService';
 import { Vibe } from '@/types';
@@ -20,6 +21,7 @@ const MOOD_COVERS: Record<string, string> = {
 const MusicFeed: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const audioPlayer = useAudioPlayer();
   
   const [vibes, setVibes] = useState<Vibe[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -27,11 +29,14 @@ const MusicFeed: React.FC = () => {
   
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [songTitle, setSongTitle] = useState('');
-  const [artistName, setArtistName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [trendingTracks, setTrendingTracks] = useState<any[]>([]);
+  const [selectedTrack, setSelectedTrack] = useState<any | null>(null);
+  
   const [mood, setMood] = useState(MOODS[0]);
   const [description, setDescription] = useState('');
-  const [externalUrl, setExternalUrl] = useState('');
   const [posting, setPosting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
@@ -51,6 +56,39 @@ const MusicFeed: React.FC = () => {
   useEffect(() => {
     loadFeed();
   }, []);
+
+  // Sync modal lifecycle with API calls
+  useEffect(() => {
+    if (isModalOpen) {
+      const loadTrending = async () => {
+        const tracks = await musicService.getTrendingTracks();
+        setTrendingTracks(tracks);
+      };
+      loadTrending();
+    } else {
+      setSearchQuery('');
+      setSearchResults([]);
+      setSelectedTrack(null);
+      setDescription('');
+    }
+  }, [isModalOpen]);
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await musicService.searchAudiusTracks(query);
+      setSearchResults(results);
+    } catch (err) {
+      console.error('Search error:', err);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const handleFavoriteToggle = (vibeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -74,35 +112,28 @@ const MusicFeed: React.FC = () => {
   const handleShareVibeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile?.id) return;
-    if (!songTitle.trim() || !artistName.trim()) {
-      setModalError('Song title and artist are required.');
+    if (!selectedTrack) {
+      setModalError('Please search and select a song vibe first.');
       return;
     }
 
     setPosting(true);
     setModalError(null);
 
-    const presetCover = MOOD_COVERS[mood] || MOOD_COVERS['Chill'];
-
     try {
       const shared = await musicService.shareVibe({
         user_id: profile.id,
-        title: description.trim() || `Listening to ${songTitle}`,
+        title: description.trim() || `Listening to ${selectedTrack.title}`,
         description: description.trim() || null,
         mood,
-        song_title: songTitle.trim(),
-        artist_name: artistName.trim(),
-        cover_url: presetCover,
-        external_url: externalUrl.trim() || null,
+        song_title: selectedTrack.title,
+        artist_name: selectedTrack.artist,
+        cover_url: selectedTrack.coverUrl,
+        external_url: selectedTrack.streamUrl,
       });
 
       if (shared) {
         setIsModalOpen(false);
-        setSongTitle('');
-        setArtistName('');
-        setMood(MOODS[0]);
-        setDescription('');
-        setExternalUrl('');
         loadFeed(); // Refresh feed
       }
     } catch (err: any) {
@@ -112,6 +143,7 @@ const MusicFeed: React.FC = () => {
       setPosting(false);
     }
   };
+
 
   return (
     <div className="flex-1 flex flex-col bg-slate-50 dark:bg-dark-bg page-transition relative min-h-0">
@@ -196,10 +228,24 @@ const MusicFeed: React.FC = () => {
 
                 {/* Vibe Song details container */}
                 <div className="px-4 pb-3 flex gap-3">
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 shrink-0 shadow-sm relative">
-                    <img src={v.cover_url || ''} alt="" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/10 flex items-center justify-center text-white">
-                      <Music size={16} />
+                  <div
+                    onClick={() => audioPlayer.playVibe(v)}
+                    className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 dark:bg-dark-bg shrink-0 shadow-sm relative cursor-pointer group/cover"
+                  >
+                    <img src={v.cover_url || ''} alt="" className="w-full h-full object-cover group-hover/cover:scale-105 transition-transform duration-300" />
+                    <div className={`absolute inset-0 flex items-center justify-center transition-colors duration-200 ${
+                      audioPlayer.currentVibeId === v.id ? 'bg-black/45' : 'bg-black/25 group-hover/cover:bg-black/40'
+                    }`}>
+                      {audioPlayer.currentVibeId === v.id && audioPlayer.isPlaying ? (
+                        <div className="flex items-end gap-0.5 h-3">
+                          <span className="eq-bar"></span>
+                          <span className="eq-bar"></span>
+                          <span className="eq-bar"></span>
+                          <span className="eq-bar"></span>
+                        </div>
+                      ) : (
+                        <Play size={16} className="text-brand fill-brand" />
+                      )}
                     </div>
                   </div>
 
@@ -252,15 +298,13 @@ const MusicFeed: React.FC = () => {
 
                   {/* External player redirect */}
                   {v.external_url && (
-                    <a
-                      href={v.external_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 hover:text-brand-dark dark:hover:text-brand"
+                    <button
+                      onClick={() => audioPlayer.playVibe(v)}
+                      className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 hover:text-brand-dark dark:hover:text-brand cursor-pointer"
                     >
-                      <span>Listen</span>
+                      <span>{audioPlayer.currentVibeId === v.id && audioPlayer.isPlaying ? 'Playing' : 'Listen'}</span>
                       <ExternalLink size={12} />
-                    </a>
+                    </button>
                   )}
                 </div>
 
@@ -283,7 +327,7 @@ const MusicFeed: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-xl bg-slate-50 dark:bg-dark-bg text-slate-500 hover:text-slate-800"
+                className="p-1 rounded-xl bg-slate-50 dark:bg-dark-bg text-slate-500 hover:text-slate-800 cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -296,107 +340,172 @@ const MusicFeed: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleShareVibeSubmit} className="space-y-4">
-              {/* Song Title */}
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Song Title
-                </label>
-                <input
-                  type="text"
-                  value={songTitle}
-                  onChange={(e) => setSongTitle(e.target.value)}
-                  placeholder="e.g. Golden Hour"
-                  className="block w-full px-3.5 py-2.5 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand"
-                  required
-                />
-              </div>
+            {!selectedTrack ? (
+              // SEARCH SONG VIEW
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Search Songs on Audius
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-3 text-slate-400 dark:text-slate-500" size={16} />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      placeholder="e.g. Chill vibes, Lofi beats, Alan Walker..."
+                      className="block w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand"
+                    />
+                  </div>
+                </div>
 
-              {/* Artist Name */}
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Artist Name
-                </label>
-                <input
-                  type="text"
-                  value={artistName}
-                  onChange={(e) => setArtistName(e.target.value)}
-                  placeholder="e.g. JVKE"
-                  className="block w-full px-3.5 py-2.5 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand"
-                  required
-                />
-              </div>
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    {searchQuery ? 'Search Results' : 'Trending Free Tracks 🔥'}
+                  </h4>
 
-              {/* Mood picker */}
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  Select Mood
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {MOODS.map((m) => {
-                    const isActive = mood === m;
-                    return (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setMood(m)}
-                        className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-brand text-slate-900 shadow-sm border border-brand'
-                            : 'bg-slate-50 dark:bg-dark-bg text-slate-500 border border-slate-200 dark:border-dark-border/40 hover:bg-slate-100'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    );
-                  })}
+                  {searching ? (
+                    <div className="py-8 text-center text-slate-400">
+                      <div className="w-5 h-5 rounded-full border-2 border-brand/20 border-t-brand animate-spin mx-auto mb-2"></div>
+                      <span className="text-[9px]">Searching database...</span>
+                    </div>
+                  ) : (searchQuery ? searchResults : trendingTracks).length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-450 dark:text-slate-500">
+                      No songs found. Try checking your spelling or search terms.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                      {(searchQuery ? searchResults : trendingTracks).map((track: any) => {
+                        const previewId = `preview-${track.title}-${track.artist}`;
+                        const isCurrentPreview = audioPlayer.currentVibeId === previewId;
+                        const isPreviewPlaying = isCurrentPreview && audioPlayer.isPlaying;
+
+                        return (
+                          <div
+                            key={track.id}
+                            onClick={() => setSelectedTrack(track)}
+                            className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50/50 hover:bg-slate-100/70 dark:bg-dark-bg/30 dark:hover:bg-dark-bg/80 border border-slate-100/50 dark:border-dark-border/40 cursor-pointer transition-all hover:scale-[100.5%]"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-200 shrink-0 shadow-sm relative group/btn">
+                                <img src={track.coverUrl} alt="" className="w-full h-full object-cover" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{track.title}</p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-550 truncate mt-0.5">{track.artist}</p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                audioPlayer.playTrackPreview(track.title, track.artist, track.coverUrl, track.streamUrl);
+                              }}
+                              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                                isPreviewPlaying
+                                  ? 'bg-brand/10 border-brand text-brand-dark dark:text-brand'
+                                  : 'bg-white dark:bg-dark-card border-slate-100 dark:border-dark-border text-slate-400 dark:text-slate-500 hover:bg-slate-50'
+                              }`}
+                            >
+                              {isPreviewPlaying ? (
+                                <div className="flex items-end gap-0.5 h-3">
+                                  <span className="w-0.5 h-2 bg-brand animate-[bounce-eq_0.8s_ease-in-out_infinite_alternate]"></span>
+                                  <span className="w-0.5 h-2 bg-brand animate-[bounce-eq_0.8s_ease-in-out_infinite_alternate_0.15s]"></span>
+                                  <span className="w-0.5 h-2 bg-brand animate-[bounce-eq_0.8s_ease-in-out_infinite_alternate_0.3s]"></span>
+                                </div>
+                              ) : (
+                                <Play size={12} fill="currentColor" />
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
+            ) : (
+              // SELECTED SONG DETAILS & DESCRIPTION POST FORM
+              <form onSubmit={handleShareVibeSubmit} className="space-y-4">
+                {/* Chosen track banner */}
+                <div className="p-3.5 bg-slate-50 dark:bg-dark-bg/60 border border-slate-150 dark:border-dark-border/80 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0 shadow-sm relative">
+                      <img src={selectedTrack.coverUrl} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-brand-dark dark:text-brand uppercase tracking-wider">Vibe selected</span>
+                      <p className="text-xs font-black text-slate-800 dark:text-slate-200 truncate mt-0.5 leading-snug">{selectedTrack.title}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{selectedTrack.artist}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTrack(null)}
+                    className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-500 text-[10px] font-bold border border-red-100 dark:bg-red-950/20 dark:border-red-900/30 transition-colors cursor-pointer"
+                  >
+                    Change
+                  </button>
+                </div>
 
-              {/* Description */}
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Write something... (Optional)
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="This vibe hits different in the rain 🌧️✨"
-                  rows={2}
-                  className="block w-full px-3.5 py-2.5 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand resize-none"
-                  maxLength={200}
-                />
-              </div>
+                {/* Mood picker */}
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Select Vibe Mood
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {MOODS.map((m) => {
+                      const isActive = mood === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setMood(m)}
+                          className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-brand text-slate-900 shadow-sm border border-brand'
+                              : 'bg-slate-50 dark:bg-dark-bg text-slate-500 border border-slate-200 dark:border-dark-border/40 hover:bg-slate-100'
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-              {/* Spotify Link */}
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Spotify / Music Link (Optional)
-                </label>
-                <input
-                  type="url"
-                  value={externalUrl}
-                  onChange={(e) => setExternalUrl(e.target.value)}
-                  placeholder="https://open.spotify.com/..."
-                  className="block w-full px-3.5 py-2.5 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand"
-                />
-              </div>
+                {/* Description */}
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Write something... (Optional)
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="This vibe hits different in the rain 🌧️✨"
+                    rows={3}
+                    className="block w-full px-3.5 py-2.5 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand resize-none"
+                    maxLength={200}
+                  />
+                </div>
 
-              <button
-                type="submit"
-                disabled={posting}
-                className="w-full mt-4 py-3 px-4 border border-transparent rounded-2xl shadow-sm text-xs font-bold text-slate-900 bg-brand hover:bg-brand-light focus:outline-none focus:ring-2 focus:ring-brand disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                {posting ? (
-                  <div className="w-4 h-4 border-2 border-slate-900/35 border-t-slate-900 rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    <span>Publish Vibe</span>
-                    <Sparkles size={14} />
-                  </>
-                )}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={posting}
+                  className="w-full mt-4 py-3 px-4 border border-transparent rounded-2xl shadow-sm text-xs font-bold text-slate-900 bg-brand hover:bg-brand-light focus:outline-none focus:ring-2 focus:ring-brand disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {posting ? (
+                    <div className="w-4 h-4 border-2 border-slate-900/35 border-t-slate-900 rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <span>Publish Vibe</span>
+                      <Sparkles size={14} />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -406,3 +515,4 @@ const MusicFeed: React.FC = () => {
 };
 
 export default MusicFeed;
+

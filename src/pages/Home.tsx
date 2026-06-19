@@ -1,18 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { MessageCircle, Radio, Music, Search, ArrowRight, UserPlus, Music2, Headphones, Heart, Sparkles, Plus, Users } from 'lucide-react';
+import { MessageCircle, Radio, Music, Search, ArrowRight, UserPlus, Music2, Headphones, Heart, Sparkles, Plus, Users, Play, Pause } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { musicService } from '@/services/musicService';
 import { voiceService } from '@/services/voiceService';
 import { friendService } from '@/services/friendService';
 import { chatService } from '@/services/chatService';
 import { Profile, Vibe, VoiceRoom, Conversation } from '@/types';
 
+
 const VIBE_CATEGORIES = ['All', 'Chill', 'Night Drive', 'Study', 'Party', 'Sad', 'Energetic'];
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const audioPlayer = useAudioPlayer();
   
   const [friends, setFriends] = useState<Profile[]>([]);
   const [recentChats, setRecentChats] = useState<Conversation[]>([]);
@@ -200,6 +203,8 @@ const Home: React.FC = () => {
           <div className="grid grid-cols-2 gap-3.5">
             {filteredVibes.map((vibe) => {
               const isFav = favorites.includes(vibe.id);
+              const isCurrent = audioPlayer.currentVibeId === vibe.id;
+              const isPlaying = isCurrent && audioPlayer.isPlaying;
               return (
                 <div
                   key={vibe.id}
@@ -212,12 +217,32 @@ const Home: React.FC = () => {
                       <img src={vibe.cover_url || ''} alt={vibe.song_title || ''} className="w-full h-full object-cover" />
                       
                       {/* Dark Vignette Overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/45" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/55" />
+
+                      {/* Play/Pause Overlay */}
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          audioPlayer.playVibe(vibe);
+                        }}
+                        className="absolute inset-0 flex items-center justify-center transition-colors duration-250 bg-black/10 group-hover:bg-black/45"
+                      >
+                        {isPlaying ? (
+                          <div className="flex items-end gap-0.5 h-3">
+                            <span className="eq-bar"></span>
+                            <span className="eq-bar"></span>
+                            <span className="eq-bar"></span>
+                            <span className="eq-bar"></span>
+                          </div>
+                        ) : (
+                          <Play size={18} className="text-brand fill-brand opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
+                      </div>
 
                       {/* Favorite Button Overlay */}
                       <button
                         onClick={(e) => handleFavoriteToggle(vibe.id, e)}
-                        className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer ${
+                        className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer z-10 ${
                           isFav ? 'bg-red-500 text-white' : 'bg-black/40 hover:bg-black/60 text-white'
                         }`}
                       >
@@ -225,7 +250,7 @@ const Home: React.FC = () => {
                       </button>
 
                       {vibe.mood && (
-                        <div className="absolute bottom-2 left-2 bg-yellow-400 text-slate-950 px-2 py-0.5 rounded-md text-[8px] font-black tracking-wider uppercase">
+                        <div className="absolute bottom-2 left-2 bg-yellow-400 text-slate-950 px-2 py-0.5 rounded-md text-[8px] font-black tracking-wider uppercase z-10">
                           {vibe.mood}
                         </div>
                       )}

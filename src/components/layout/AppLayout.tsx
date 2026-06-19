@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, MessageCircle, Search, Music2, Radio, User, Sun, Moon, Camera } from 'lucide-react';
+import { Home, MessageCircle, Search, Music2, Radio, User, Sun, Moon, Camera, Play, Pause, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 
 const AppLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const audioPlayer = useAudioPlayer();
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('theme');
     return saved === 'dark';
@@ -99,6 +101,64 @@ const AppLayout: React.FC = () => {
         <main className="flex-1 overflow-y-auto relative flex flex-col min-h-0">
           <Outlet context={{ darkMode, toggleTheme }} />
         </main>
+
+        {/* Floating persistent audio player */}
+        {!isChatRoom && !isCamera && audioPlayer.trackTitle && (
+          <div className="px-4 py-2.5 bg-white/80 dark:bg-dark-card/85 backdrop-blur-md border-t border-slate-100 dark:border-dark-border/60 z-20 transition-all duration-300 relative">
+            {/* Smooth Top Progress Bar Indicator */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-slate-100 dark:bg-slate-800">
+              <div 
+                className="h-full bg-brand rounded-r transition-all duration-200" 
+                style={{ width: `${audioPlayer.progress}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mt-1">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {/* Rotating Album Art when playing */}
+                <div className={`w-9 h-9 rounded-xl overflow-hidden bg-slate-205 border border-slate-150/45 dark:border-dark-border shadow-sm shrink-0 transition-transform ${
+                  audioPlayer.isPlaying ? 'animate-[spin_6s_linear_infinite]' : ''
+                }`}>
+                  {audioPlayer.coverUrl ? (
+                    <img src={audioPlayer.coverUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-brand/10 flex items-center justify-center text-brand">
+                      <Music2 size={16} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 truncate leading-snug">
+                    {audioPlayer.trackTitle}
+                  </p>
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 truncate font-semibold">
+                    {audioPlayer.artistName}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action play controllers */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={audioPlayer.togglePlay}
+                  className="p-2 rounded-full hover:bg-slate-150/30 dark:hover:bg-slate-800/50 text-slate-800 dark:text-slate-100 cursor-pointer"
+                  aria-label={audioPlayer.isPlaying ? 'Pause' : 'Play'}
+                >
+                  {audioPlayer.isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                </button>
+
+                <button
+                  onClick={audioPlayer.stop}
+                  className="p-2 rounded-full hover:bg-slate-150/30 dark:hover:bg-slate-800/50 text-slate-400 hover:text-slate-650 dark:text-slate-500 dark:hover:text-slate-350 cursor-pointer"
+                  aria-label="Stop playback"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Bottom Navigation */}
         {!isChatRoom && !isCamera && (

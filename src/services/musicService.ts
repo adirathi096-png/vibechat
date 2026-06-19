@@ -73,4 +73,52 @@ export const musicService = {
       return [];
     }
   },
+
+  // Search tracks on Audius API
+  async searchAudiusTracks(query: string): Promise<any[]> {
+    if (!query.trim()) return [];
+    try {
+      const response = await fetch(
+        `https://api.audius.co/v1/tracks/search?query=${encodeURIComponent(query)}&app_name=VibeChat`
+      );
+      if (!response.ok) throw new Error('Search failed');
+      const json = await response.json();
+      const tracks = json.data || [];
+
+      return tracks.map((track: any) => ({
+        id: track.id,
+        title: track.title,
+        artist: track.user?.name || track.user?.handle || 'Unknown Artist',
+        coverUrl: track.artwork?.['480x480'] || track.artwork?.['150x150'] || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&h=300&q=80',
+        streamUrl: `https://api.audius.co/v1/tracks/${track.id}/stream?app_name=VibeChat`,
+      }));
+    } catch (err) {
+      console.error('Error searching Audius tracks:', err);
+      return [];
+    }
+  },
+
+  // Get trending tracks on Audius API
+  async getTrendingTracks(): Promise<any[]> {
+    try {
+      const response = await fetch(
+        `https://api.audius.co/v1/tracks/trending?limit=10&app_name=VibeChat`
+      );
+      if (!response.ok) throw new Error('Fetching trending failed');
+      const json = await response.json();
+      const tracks = json.data || [];
+
+      return tracks.map((track: any) => ({
+        id: track.id,
+        title: track.title,
+        artist: track.user?.name || track.user?.handle || 'Unknown Artist',
+        coverUrl: track.artwork?.['480x480'] || track.artwork?.['150x150'] || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&h=300&q=80',
+        streamUrl: `https://api.audius.co/v1/tracks/${track.id}/stream?app_name=VibeChat`,
+      }));
+    } catch (err) {
+      console.error('Error fetching trending Audius tracks:', err);
+      return [];
+    }
+  },
 };
+
