@@ -24,6 +24,19 @@ body {
   font-family: var(--font-display);
 }
 
+/* Premium Glassmorphism Cards */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.dark .glass-card {
+  background: rgba(18, 21, 29, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 4px;
@@ -35,30 +48,39 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.25);
+  background: rgba(156, 163, 175, 0.2);
   border-radius: 9999px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.45);
-}
-
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(75, 85, 99, 0.4);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 114, 128, 0.6);
+  background: rgba(75, 85, 99, 0.35);
 }
 
 /* Animations */
 .animate-pulse-slow {
-  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: pulse-slow 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @keyframes pulse-slow {
   0%, 100% { opacity: 1; }
-  50% { opacity: .45; }
+  50% { opacity: .4; }
+}
+
+/* Bouncing Equalizer Bars */
+.eq-bar {
+  display: inline-block;
+  width: 2px;
+  background-color: var(--color-brand);
+  animation: bounce-eq 0.8s ease-in-out infinite alternate;
+}
+
+.eq-bar:nth-child(2) { animation-delay: 0.15s; }
+.eq-bar:nth-child(3) { animation-delay: 0.3s; }
+.eq-bar:nth-child(4) { animation-delay: 0.45s; }
+
+@keyframes bounce-eq {
+  0% { height: 3px; }
+  100% { height: 14px; }
 }
 
 /* Snapchat active story ring */
@@ -74,9 +96,18 @@ body {
   100% { background-position: 0% 50%; }
 }
 
+/* Glow effects */
+.glow-brand {
+  box-shadow: 0 0 15px rgba(255, 212, 0, 0.15);
+}
+
+.dark .glow-brand {
+  box-shadow: 0 0 20px rgba(255, 212, 0, 0.08);
+}
+
 /* Smooth transitions */
 .page-transition {
-  animation: fadeIn 0.2s ease-out forwards;
+  animation: fadeIn 0.25s ease-out forwards;
 }
 
 @keyframes fadeIn {
