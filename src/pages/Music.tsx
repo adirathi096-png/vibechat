@@ -27,14 +27,16 @@ const MusicFeed: React.FC = () => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Modal states
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Search & suggestions states
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [trendingTracks, setTrendingTracks] = useState<any[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<any | null>(null);
+  const [isSearchingFocused, setIsSearchingFocused] = useState(false);
   
+  // Share modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [mood, setMood] = useState(MOODS[0]);
   const [description, setDescription] = useState('');
   const [posting, setPosting] = useState(false);
@@ -55,23 +57,17 @@ const MusicFeed: React.FC = () => {
 
   useEffect(() => {
     loadFeed();
-  }, []);
-
-  // Sync modal lifecycle with API calls
-  useEffect(() => {
-    if (isModalOpen) {
-      const loadTrending = async () => {
+    // Load trending recommendations once on mount
+    const loadTrending = async () => {
+      try {
         const tracks = await musicService.getTrendingTracks();
         setTrendingTracks(tracks);
-      };
-      loadTrending();
-    } else {
-      setSearchQuery('');
-      setSearchResults([]);
-      setSelectedTrack(null);
-      setDescription('');
-    }
-  }, [isModalOpen]);
+      } catch (err) {
+        console.error('Error loading trending tracks:', err);
+      }
+    };
+    loadTrending();
+  }, []);
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -148,25 +144,154 @@ const MusicFeed: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col bg-slate-50 dark:bg-dark-bg page-transition relative min-h-0">
       
-      {/* Title Header */}
-      <div className="p-4 bg-white dark:bg-dark-bg border-b border-slate-100 dark:border-dark-border flex items-center justify-between shrink-0">
-        <div>
-          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 font-display">
-            Vibe Lounge
-          </h2>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-            Discover and share song snippets with friends
-          </p>
+      {/* Title Header with top Search input */}
+      <div className="p-4 bg-white dark:bg-dark-bg border-b border-slate-100 dark:border-dark-border flex flex-col gap-3 shrink-0 z-20">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 font-display">
+              Vibe Lounge
+            </h2>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+              Search music, play instantly, and share your vibe
+            </p>
+          </div>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="px-3.5 py-2 rounded-2xl bg-brand hover:bg-brand-light text-slate-900 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
-        >
-          <Plus size={16} />
-          <span>Share Vibe</span>
-        </button>
+        {/* Top Search Input */}
+        <div className="relative">
+          <Search className="absolute left-3.5 top-3.5 text-slate-400 dark:text-slate-500" size={16} />
+          <input
+            id="lounge-search-input"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => setIsSearchingFocused(true)}
+            placeholder="Search songs or artists on Audius..."
+            className="block w-full pl-10 pr-10 py-3 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-405 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand shadow-inner"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSearchResults([]);
+              }}
+              className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-650 cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Suggestion Dropdown Overlay */}
+      {isSearchingFocused && (
+        <div className="absolute inset-x-0 top-[125px] bottom-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs z-30 flex flex-col min-h-0">
+          <div className="bg-white dark:bg-dark-card border-b border-slate-100 dark:border-dark-border max-h-[75%] flex flex-col p-4 shadow-xl animate-slideDown min-h-0">
+            
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-dark-border">
+              <h4 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                {searchQuery ? 'Search Suggestions' : 'Trending Hits 🔥'}
+              </h4>
+              <button
+                onClick={() => setIsSearchingFocused(false)}
+                className="text-[10px] font-bold text-brand hover:text-brand-dark flex items-center gap-1 cursor-pointer"
+              >
+                <span>Close Search</span>
+                <X size={12} />
+              </button>
+            </div>
+
+            {searching ? (
+              <div className="py-12 text-center text-slate-405">
+                <div className="w-5 h-5 rounded-full border-2 border-brand/20 border-t-brand animate-spin mx-auto mb-2"></div>
+                <span className="text-[10px] font-semibold">Tuning radio frequencies...</span>
+              </div>
+            ) : (searchQuery ? searchResults : trendingTracks).length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-400 dark:text-slate-500 font-medium">
+                No tracks found. Try searching for something else.
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin">
+                {(searchQuery ? searchResults : trendingTracks).map((track: any) => {
+                  const isCurrent = audioPlayer.streamUrl === track.streamUrl;
+                  const isPlaying = isCurrent && audioPlayer.isPlaying;
+                  return (
+                    <div
+                      key={track.id}
+                      className="flex items-center justify-between p-2 rounded-2xl bg-slate-50/50 hover:bg-slate-100/70 dark:bg-dark-bg/35 dark:hover:bg-dark-bg/60 border border-slate-100/50 dark:border-dark-border/40 transition-all"
+                    >
+                      {/* Song Info (Clicking starts instant playback) */}
+                      <div 
+                        onClick={() => {
+                          audioPlayer.playTrackPreview(track.title, track.artist, track.coverUrl, track.streamUrl);
+                        }}
+                        className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer group/item"
+                      >
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-200 shrink-0 shadow-sm relative">
+                          <img src={track.coverUrl} alt="" className="w-full h-full object-cover" />
+                          <div className={`absolute inset-0 flex items-center justify-center transition-colors duration-200 ${
+                            isCurrent ? 'bg-black/45' : 'bg-black/10 group-hover/item:bg-black/35'
+                          }`}>
+                            {isPlaying ? (
+                              <div className="flex items-end gap-0.5 h-3">
+                                <span className="eq-bar"></span>
+                                <span className="eq-bar"></span>
+                                <span className="eq-bar"></span>
+                              </div>
+                            ) : (
+                              <Play size={12} className="text-brand fill-brand opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-700 dark:text-slate-200 group-hover/item:text-brand-dark dark:group-hover/item:text-brand truncate leading-snug">
+                            {track.title}
+                          </p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{track.artist}</p>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Play indicator button */}
+                        <button
+                          type="button"
+                          onClick={() => audioPlayer.playTrackPreview(track.title, track.artist, track.coverUrl, track.streamUrl)}
+                          className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                            isCurrent
+                              ? 'bg-brand/10 border-brand text-brand-dark dark:text-brand'
+                              : 'bg-white dark:bg-dark-card border-slate-100 dark:border-dark-border text-slate-400 dark:text-slate-500 hover:bg-slate-50'
+                          }`}
+                        >
+                          {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+                        </button>
+
+                        {/* Share/Publish trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTrack(track);
+                            setIsModalOpen(true);
+                          }}
+                          className="px-2.5 py-2 bg-brand hover:bg-brand-light text-slate-900 text-[10px] font-black rounded-xl flex items-center gap-1 cursor-pointer transition-all shadow-sm"
+                        >
+                          <Sparkles size={10} />
+                          <span>Share</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {/* Background dismiss clicker */}
+          <div 
+            className="flex-1 cursor-pointer" 
+            onClick={() => setIsSearchingFocused(false)} 
+          />
+        </div>
+      )}
 
       {/* Feed list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 scrollbar-thin">
@@ -184,14 +309,18 @@ const MusicFeed: React.FC = () => {
               The Lounge is quiet...
             </h3>
             <p className="mt-2 text-xs text-slate-400 dark:text-slate-500 max-w-[200px] leading-relaxed">
-              No one has posted their vibes today. Be the first to start the music feed!
+              No one has posted their vibes today. Search for a song above and start the music feed!
             </p>
             <button
-              onClick={() => setIsModalOpen(true)}
-              className="mt-4 inline-flex items-center gap-1.5 px-4.5 py-2.5 bg-brand hover:bg-brand-light text-slate-900 text-xs font-bold rounded-2xl cursor-pointer"
+              onClick={() => {
+                setIsSearchingFocused(true);
+                const input = document.getElementById('lounge-search-input');
+                if (input) input.focus();
+              }}
+              className="mt-4 inline-flex items-center gap-1.5 px-4.5 py-2.5 bg-brand hover:bg-brand-light text-slate-900 text-xs font-bold rounded-2xl cursor-pointer shadow-sm"
             >
-              <Plus size={14} />
-              <span>Share a song</span>
+              <Search size={14} />
+              <span>Search a song</span>
             </button>
           </div>
         ) : (
@@ -312,17 +441,16 @@ const MusicFeed: React.FC = () => {
             );
           }))}
       </div>
-
       {/* Share Vibe Slide-Up Modal */}
-      {isModalOpen && (
-        <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm z-30 flex flex-col justify-end">
+      {isModalOpen && selectedTrack && (
+        <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm z-35 flex flex-col justify-end">
           <div className="bg-white dark:bg-dark-card border-t border-slate-100 dark:border-dark-border rounded-t-3xl max-h-[90%] overflow-y-auto p-5 space-y-4 shadow-2xl animate-slideUp">
             
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-dark-border pb-3">
               <div className="flex items-center gap-1.5">
                 <Music size={18} className="text-yellow-500" />
                 <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200 font-display">
-                  Share your song vibe
+                  Post Vibe to Lounge
                 </h3>
               </div>
               <button
@@ -340,172 +468,78 @@ const MusicFeed: React.FC = () => {
               </div>
             )}
 
-            {!selectedTrack ? (
-              // SEARCH SONG VIEW
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                    Search Songs on Audius
-                  </label>
-                  <div className="relative">
-                    <Search className="absolute left-3.5 top-3 text-slate-400 dark:text-slate-500" size={16} />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => handleSearch(e.target.value)}
-                      placeholder="e.g. Chill vibes, Lofi beats, Alan Walker..."
-                      className="block w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand"
-                    />
+            {/* SELECTED SONG DETAILS & DESCRIPTION POST FORM */}
+            <form onSubmit={handleShareVibeSubmit} className="space-y-4">
+              {/* Chosen track banner */}
+              <div className="p-3.5 bg-slate-50 dark:bg-dark-bg/60 border border-slate-150 dark:border-dark-border/80 rounded-2xl flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0 shadow-sm relative">
+                    <img src={selectedTrack.coverUrl} alt="" className="w-full h-full object-cover" />
                   </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    {searchQuery ? 'Search Results' : 'Trending Free Tracks 🔥'}
-                  </h4>
-
-                  {searching ? (
-                    <div className="py-8 text-center text-slate-400">
-                      <div className="w-5 h-5 rounded-full border-2 border-brand/20 border-t-brand animate-spin mx-auto mb-2"></div>
-                      <span className="text-[9px]">Searching database...</span>
-                    </div>
-                  ) : (searchQuery ? searchResults : trendingTracks).length === 0 ? (
-                    <div className="py-8 text-center text-xs text-slate-450 dark:text-slate-500">
-                      No songs found. Try checking your spelling or search terms.
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                      {(searchQuery ? searchResults : trendingTracks).map((track: any) => {
-                        const previewId = `preview-${track.title}-${track.artist}`;
-                        const isCurrentPreview = audioPlayer.currentVibeId === previewId;
-                        const isPreviewPlaying = isCurrentPreview && audioPlayer.isPlaying;
-
-                        return (
-                          <div
-                            key={track.id}
-                            onClick={() => setSelectedTrack(track)}
-                            className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50/50 hover:bg-slate-100/70 dark:bg-dark-bg/30 dark:hover:bg-dark-bg/80 border border-slate-100/50 dark:border-dark-border/40 cursor-pointer transition-all hover:scale-[100.5%]"
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-200 shrink-0 shadow-sm relative group/btn">
-                                <img src={track.coverUrl} alt="" className="w-full h-full object-cover" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{track.title}</p>
-                                <p className="text-[10px] text-slate-400 dark:text-slate-550 truncate mt-0.5">{track.artist}</p>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                audioPlayer.playTrackPreview(track.title, track.artist, track.coverUrl, track.streamUrl);
-                              }}
-                              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-                                isPreviewPlaying
-                                  ? 'bg-brand/10 border-brand text-brand-dark dark:text-brand'
-                                  : 'bg-white dark:bg-dark-card border-slate-100 dark:border-dark-border text-slate-400 dark:text-slate-500 hover:bg-slate-50'
-                              }`}
-                            >
-                              {isPreviewPlaying ? (
-                                <div className="flex items-end gap-0.5 h-3">
-                                  <span className="w-0.5 h-2 bg-brand animate-[bounce-eq_0.8s_ease-in-out_infinite_alternate]"></span>
-                                  <span className="w-0.5 h-2 bg-brand animate-[bounce-eq_0.8s_ease-in-out_infinite_alternate_0.15s]"></span>
-                                  <span className="w-0.5 h-2 bg-brand animate-[bounce-eq_0.8s_ease-in-out_infinite_alternate_0.3s]"></span>
-                                </div>
-                              ) : (
-                                <Play size={12} fill="currentColor" />
-                              )}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <div className="min-w-0">
+                    <span className="text-[9px] font-black text-brand-dark dark:text-brand uppercase tracking-wider">Vibe selected</span>
+                    <p className="text-xs font-black text-slate-800 dark:text-slate-200 truncate mt-0.5 leading-snug">{selectedTrack.title}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-550 truncate mt-0.5">{selectedTrack.artist}</p>
+                  </div>
                 </div>
               </div>
-            ) : (
-              // SELECTED SONG DETAILS & DESCRIPTION POST FORM
-              <form onSubmit={handleShareVibeSubmit} className="space-y-4">
-                {/* Chosen track banner */}
-                <div className="p-3.5 bg-slate-50 dark:bg-dark-bg/60 border border-slate-150 dark:border-dark-border/80 rounded-2xl flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0 shadow-sm relative">
-                      <img src={selectedTrack.coverUrl} alt="" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[9px] font-black text-brand-dark dark:text-brand uppercase tracking-wider">Vibe selected</span>
-                      <p className="text-xs font-black text-slate-800 dark:text-slate-200 truncate mt-0.5 leading-snug">{selectedTrack.title}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{selectedTrack.artist}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTrack(null)}
-                    className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-500 text-[10px] font-bold border border-red-100 dark:bg-red-950/20 dark:border-red-900/30 transition-colors cursor-pointer"
-                  >
-                    Change
-                  </button>
-                </div>
 
-                {/* Mood picker */}
-                <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                    Select Vibe Mood
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {MOODS.map((m) => {
-                      const isActive = mood === m;
-                      return (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setMood(m)}
-                          className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            isActive
-                              ? 'bg-brand text-slate-900 shadow-sm border border-brand'
-                              : 'bg-slate-50 dark:bg-dark-bg text-slate-500 border border-slate-200 dark:border-dark-border/40 hover:bg-slate-100'
-                          }`}
-                        >
-                          {m}
-                        </button>
-                      );
-                    })}
-                  </div>
+              {/* Mood picker */}
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                  Select Vibe Mood
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {MOODS.map((m) => {
+                    const isActive = mood === m;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setMood(m)}
+                        className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-brand text-slate-900 shadow-sm border border-brand'
+                            : 'bg-slate-50 dark:bg-dark-bg text-slate-500 border border-slate-200 dark:border-dark-border/40 hover:bg-slate-100'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
 
-                {/* Description */}
-                <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Write something... (Optional)
-                  </label>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="This vibe hits different in the rain 🌧️✨"
-                    rows={3}
-                    className="block w-full px-3.5 py-2.5 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand resize-none"
-                    maxLength={200}
-                  />
-                </div>
+              {/* Description */}
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Write something... (Optional)
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="This vibe hits different in the rain 🌧️✨"
+                  rows={3}
+                  className="block w-full px-3.5 py-2.5 border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-dark-bg text-slate-800 dark:text-slate-100 placeholder-slate-400 rounded-2xl text-xs focus:outline-none focus:ring-1 focus:ring-brand resize-none"
+                  maxLength={200}
+                />
+              </div>
 
-                <button
-                  type="submit"
-                  disabled={posting}
-                  className="w-full mt-4 py-3 px-4 border border-transparent rounded-2xl shadow-sm text-xs font-bold text-slate-900 bg-brand hover:bg-brand-light focus:outline-none focus:ring-2 focus:ring-brand disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  {posting ? (
-                    <div className="w-4 h-4 border-2 border-slate-900/35 border-t-slate-900 rounded-full animate-spin"></div>
-                  ) : (
-                    <>
-                      <span>Publish Vibe</span>
-                      <Sparkles size={14} />
-                    </>
-                  )}
-                </button>
-              </form>
-            )}
+              <button
+                type="submit"
+                disabled={posting}
+                className="w-full mt-4 py-3 px-4 border border-transparent rounded-2xl shadow-sm text-xs font-bold text-slate-900 bg-brand hover:bg-brand-light focus:outline-none focus:ring-2 focus:ring-brand disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+              >
+                {posting ? (
+                  <div className="w-4 h-4 border-2 border-slate-900/35 border-t-slate-900 rounded-full animate-spin"></div>
+                ) : (
+                  <>
+                    <span>Publish Vibe</span>
+                    <Sparkles size={14} />
+                  </>
+                )}
+              </button>
+            </form>
           </div>
         </div>
       )}
