@@ -16,6 +16,7 @@ import Music from '@/pages/Music';
 import Voice from '@/pages/Voice';
 import Profile from '@/pages/Profile';
 import Settings from '@/pages/Settings';
+import CameraPage from '@/pages/Camera';
 
 // Layout
 import AppLayout from '@/components/layout/AppLayout';
@@ -80,6 +81,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="voice" element={<Voice />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="camera" element={<CameraPage />} />
       </Route>
 
       {/* Catch-all Redirect */}

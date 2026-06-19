@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, MessageCircle, Search, Music2, Radio, User, Sun, Moon } from 'lucide-react';
+import { Home, MessageCircle, Search, Music2, Radio, User, Sun, Moon, Camera } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const AppLayout: React.FC = () => {
@@ -25,8 +25,9 @@ const AppLayout: React.FC = () => {
 
   const toggleTheme = () => setDarkMode(!darkMode);
 
-  // Hide navigation on active chat screen
+  // Hide navigation and headers inside chat rooms or active camera screen
   const isChatRoom = location.pathname.startsWith('/app/chats/') && location.pathname !== '/app/chats';
+  const isCamera = location.pathname === '/app/camera';
 
   const navItems = [
     { label: 'Home', path: '/app/home', icon: Home },
@@ -42,8 +43,8 @@ const AppLayout: React.FC = () => {
       {/* Premium Desktop Centering Shell */}
       <div className="w-full h-screen max-w-md bg-white dark:bg-dark-bg border-x border-slate-200 dark:border-dark-border flex flex-col relative overflow-hidden shadow-2xl">
         
-        {/* Conditional Header (hidden inside chat rooms to let pages render custom headers) */}
-        {!isChatRoom && (
+        {/* Conditional Header */}
+        {!isChatRoom && !isCamera && (
           <header className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-dark-border bg-white/80 dark:bg-dark-bg/80 backdrop-blur-md z-10 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-brand flex items-center justify-center font-bold text-slate-900 font-display text-lg shadow-sm">
@@ -54,11 +55,20 @@ const AppLayout: React.FC = () => {
               </span>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              {/* Camera Shortcut */}
+              <button
+                onClick={() => navigate('/app/camera')}
+                className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-dark-card dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                aria-label="Open Camera"
+              >
+                <Camera size={18} />
+              </button>
+
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-dark-card dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+                className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-dark-card dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
                 aria-label="Toggle Theme"
               >
                 {darkMode ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} />}
@@ -91,7 +101,7 @@ const AppLayout: React.FC = () => {
         </main>
 
         {/* Bottom Navigation */}
-        {!isChatRoom && (
+        {!isChatRoom && !isCamera && (
           <nav className="h-16 border-t border-slate-100 dark:border-dark-border bg-white dark:bg-dark-bg px-2 flex items-center justify-around shrink-0 z-10">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
